@@ -4,7 +4,7 @@ Personal Project
 ## 📁 Project Structure
 
 ```
-DP-GNN/
+GNN-Router/
 │
 ├── datasets/
 │   ├── xxx_loader.py                # Loader of datasets like PROTEINS, ENZYMES, etc.
