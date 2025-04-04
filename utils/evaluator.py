@@ -1,41 +1,51 @@
-import torch
+# utils/evaluator.py
+
 import pytorch_lightning as pl
-import torch.nn as nn
+import torch
 import torch.nn.functional as F
-from torchmetrics import Accuracy
 
 class Evaluator(pl.LightningModule):
-    def __init__(self, model, strategy_name="baseline"):
+    def __init__(self, model, strategy_name='unknown', lr=0.001):
         super().__init__()
         self.model = model
-        self.criterion = nn.CrossEntropyLoss()
-        self.acc = Accuracy(task='multiclass', num_classes=self.model.classifier.out_features)
         self.strategy_name = strategy_name
+        self.lr = lr
+
+    def forward(self, x, edge_index, batch):
+        return self.model(x, edge_index, batch)
 
     def training_step(self, batch, batch_idx):
-        out = self.model(batch.x, batch.edge_index, batch.batch)
-        loss = self.criterion(out, batch.y)
-        acc = self.acc(out, batch.y)
-        self.log("train_loss", loss, prog_bar=True)
-        self.log("train_acc", acc, prog_bar=True)
+        x, edge_index, y, b = batch.x, batch.edge_index, batch.y, batch.batch
+        logits = self.forward(x, edge_index, b)
+        loss = F.cross_entropy(logits, y)
+        preds = logits.argmax(dim=-1)
+        acc = (preds == y).float().mean()
+
+        self.log("train_loss", loss, on_step=False, on_epoch=True)
+        self.log("train_acc", acc, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        out = self.model(batch.x, batch.edge_index, batch.batch)
-        loss = self.criterion(out, batch.y)
-        acc = self.acc(out, batch.y)
-        self.log("val_loss", loss, prog_bar=True)
-        self.log("val_acc", acc, prog_bar=True)
-        return loss
+        x, edge_index, y, b = batch.x, batch.edge_index, batch.y, batch.batch
+        logits = self.forward(x, edge_index, b)
+        loss = F.cross_entropy(logits, y)
+        preds = logits.argmax(dim=-1)
+        acc = (preds == y).float().mean()
+
+        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val_acc", acc, on_step=False, on_epoch=True, prog_bar=True)
+        return acc
 
     def test_step(self, batch, batch_idx):
-        out = self.model(batch.x, batch.edge_index, batch.batch)
-        loss = self.criterion(out, batch.y)
-        acc = self.acc(out, batch.y)
-        self.log("test_loss", loss, prog_bar=True)
-        self.log("test_acc", acc, prog_bar=True)
-        return loss
+        x, edge_index, y, b = batch.x, batch.edge_index, batch.y, batch.batch
+        logits = self.forward(x, edge_index, b)
+        loss = F.cross_entropy(logits, y)
+        preds = logits.argmax(dim=-1)
+        acc = (preds == y).float().mean()
+
+        self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("test_acc", acc, on_step=False, on_epoch=True, prog_bar=True)
+        return acc
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=0.001, weight_decay=5e-4)
-        return optimizer
+        return torch.optim.Adam(self.parameters(), lr=self.lr)

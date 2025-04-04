@@ -14,7 +14,6 @@ class GCNBlock(nn.Module):
         x = self.conv2(x, edge_index)
         return x
 
-
 class GATBlock(nn.Module):
     def __init__(self, in_channels, out_channels, heads=4):
         super().__init__()
@@ -27,13 +26,21 @@ class GATBlock(nn.Module):
         x = self.conv2(x, edge_index)
         return x
 
-
 class GINBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
-        nn1 = nn.Sequential(nn.Linear(in_channels, out_channels), nn.ReLU(), nn.Linear(out_channels, out_channels))
+        nn1 = nn.Sequential(
+            nn.Linear(in_channels, out_channels),
+            nn.ReLU(),
+            nn.Linear(out_channels, out_channels)
+        )
         self.conv1 = GINConv(nn1)
-        nn2 = nn.Sequential(nn.Linear(out_channels, out_channels), nn.ReLU(), nn.Linear(out_channels, out_channels))
+
+        nn2 = nn.Sequential(
+            nn.Linear(out_channels, out_channels),
+            nn.ReLU(),
+            nn.Linear(out_channels, out_channels)
+        )
         self.conv2 = GINConv(nn2)
 
     def forward(self, x, edge_index):

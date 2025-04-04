@@ -1,5 +1,5 @@
 from modules.routing_controller import SimpleRoutingController
-from experiments.train_controller import train_and_evaluate
+from experiments.train_random_controller import train_and_evaluate
 from core.reward_utils import compute_reward
 
 

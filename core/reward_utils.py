@@ -1,14 +1,12 @@
 def compute_reward(accuracy, model_complexity=None, alpha=0.0):
     """
-    Computes a reward for RL controller.
+    计算 RL controller 对应的奖励值。
 
-    Parameters:
-    - accuracy (float): validation accuracy [0,1]
-    - model_complexity (float): optional complexity cost (e.g., FLOPs, params)
-    - alpha (float): weight for complexity penalty
+    accuracy: 测试/验证集准确率 [0,1]
+    model_complexity: 模型复杂度(可选，如FLOPs或参数量)
+    alpha: 复杂度惩罚的权重
 
-    Returns:
-    - reward (float): weighted reward
+    返回: reward (float)
     """
     if model_complexity is not None:
         reward = accuracy - alpha * model_complexity

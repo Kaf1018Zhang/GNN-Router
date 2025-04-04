@@ -1,0 +1,9 @@
+# 这里可以写一些预定义策略或 RL controller 超参数
+candidates:
+  - GCN
+  - GAT
+  - GIN
+
+rl_controller:
+  alpha: 0.1  # complexity penalty weight
+  max_trials: 10

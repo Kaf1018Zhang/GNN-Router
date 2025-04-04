@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import global_mean_pool
 
 class ModuleExecutor(nn.Module):
+    """
+    封装：某个特定 GNN Block + pooling + 分类器的组合
+    """
     def __init__(self, gnn_block, pooling_fn, in_channels, hidden_channels, out_channels, dropout=0.5):
         super().__init__()
         self.encoder = gnn_block(in_channels, hidden_channels)
@@ -16,4 +18,5 @@ class ModuleExecutor(nn.Module):
         x = F.relu(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.pooling_fn(x, batch)
-        return self.classifier(x)
+        logits = self.classifier(x)
+        return logits
