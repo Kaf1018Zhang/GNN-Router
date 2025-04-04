@@ -11,8 +11,10 @@ DP-GNN/
 │   └── loader_factory.py            # Load all avaliable datasets like PROTEINS, ENZYMES, etc.
 │
 ├── modules/
-│   ├── controller.py                # RL controller logic
-│   ├── composed_model.py            # Compose full GNN model
+│   ├── routing_controller.py              
+│   ├── gnn_base.py             
+│   ├── rl_controller.py             
+│   ├── pooling.py                   
 │   └── composable_blocks.py         # Encoder, pooling, readout, augmentation blocks
 │
 ├── utils/
