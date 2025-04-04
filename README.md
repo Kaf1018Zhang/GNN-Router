@@ -7,7 +7,8 @@ Personal Project
 DP-GNN/
 │
 ├── datasets/
-│   └── loader_factory.py            # Load PROTEINS, ENZYMES, etc.
+│   ├── xxx_loader.py                # Loader of datasets like PROTEINS, ENZYMES, etc.
+│   └── loader_factory.py            # Load all avaliable datasets like PROTEINS, ENZYMES, etc.
 │
 ├── modules/
 │   ├── controller.py                # RL controller logic
@@ -19,7 +20,6 @@ DP-GNN/
 │   └── visualize.py                 # Visualization for episodes and overall
 │
 ├── experiments/
-│   ├── train_controller.py          # Fixed strategy training
 │   ├── train_random_controller.py   # Random strategy sampling
 │   ├── train_rl_controller.py       # RL-based architecture search
 │   └── deploy_controller.py         # Evaluate saved best strategy
