@@ -1,5 +1,4 @@
-# privacy_gnn_rl_project
-
+# GNN-Router
 Personal Project
 
 composable-gnn-routing/
