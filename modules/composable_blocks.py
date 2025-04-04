@@ -1,5 +1,3 @@
-# modules/composable_blocks.py
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -36,10 +34,6 @@ class GCNEncoder(nn.Module):
 
 
 class GATEncoder(nn.Module):
-    """
-    这里简化处理: heads=4, concat=False => 输出维度依旧是 out_channels
-    如果想要拼接多头输出, 需要把 concat=True, 并在第二层相应修改 in_channels.
-    """
     def __init__(self, in_channels, out_channels, heads=4, with_bn=False):
         super().__init__()
         # concat=False => 每层输出大小 = out_channels
@@ -125,10 +119,6 @@ class MLPReadout(nn.Module):
         return self.mlp(x)
 
 class TransformerReadout(nn.Module):
-    """
-    改进版: 支持 batch_size>1, 即多张图合并后, 
-    需要针对每张图单独做transformer注意力, 最终输出 [batch_size, out_dim].
-    """
     def __init__(self, d_model, out_dim, nhead=4, num_layers=1):
         super().__init__()
         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=True)
@@ -138,10 +128,6 @@ class TransformerReadout(nn.Module):
         self.d_model = d_model
 
     def forward_one_graph(self, x_sub):
-        """
-        针对单张图 (x_sub形状 [n_i, d_model])做CLS+transformer,
-        返回[ out_dim ]
-        """
         # 加CLS token
         cls_tokens = self.cls_token  # [1,1,d_model]
         x_sub = x_sub.unsqueeze(0)   # => [1, n_i, d_model]
@@ -152,12 +138,6 @@ class TransformerReadout(nn.Module):
         return logits.squeeze(0)                      # => [out_dim]
 
     def forward(self, x, batch):
-        """
-        x: [N_total, d_model], batch: [N_total]
-        - N_total = sum_{g=1..batch_size}(n_g) 
-        - batch[i] tells which graph x[i] belongs to
-        最终返回 [batch_size, out_dim].
-        """
         device = x.device
         n_graphs = batch.max().item() + 1
         outs = []
@@ -165,7 +145,6 @@ class TransformerReadout(nn.Module):
             mask = (batch == g)
             x_sub = x[mask]  # shape [n_i, d_model]
             if x_sub.size(0) == 0:
-                # 如果某个batch里有空图(很少见),则输出一个0向量
                 outs.append(torch.zeros(self.out_fc.out_features, device=device))
                 continue
             out_sub = self.forward_one_graph(x_sub)
@@ -180,9 +159,9 @@ def raw_features(data):
     return data
 
 def spectral_features(data):
-    # 需要自己实现拉普拉斯特征等
+    # NNeed to implement Laplace features, etc. I will think about it in the future.
     return data
 
 def virtual_node_features(data):
-    # 需要自己添加虚拟节点, edges等
+    # Need to add virtual nodes, edges, etc. May try if I have time.
     return data

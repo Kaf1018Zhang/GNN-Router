@@ -1,5 +1,3 @@
-# modules/rl_controller.py
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,9 +6,6 @@ import random
 class MultiHeadRLController(nn.Module):
     def __init__(self, encoder_choices, pooling_choices, readout_choices,
                  augment_choices, hidden_dims, dropouts, lrs, bn_onoff, temp_choices):
-        """
-        每个离散列表 = [选项1, 选项2, ...]
-        """
         super().__init__()
         self.encoder_choices = encoder_choices
         self.pooling_choices = pooling_choices

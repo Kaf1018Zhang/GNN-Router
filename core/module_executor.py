@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 class ModuleExecutor(nn.Module):
     """
-    封装：某个特定 GNN Block + pooling + 分类器的组合
+    Abstraction: GNN Block + pooling + Classifer
     """
     def __init__(self, gnn_block, pooling_fn, in_channels, hidden_channels, out_channels, dropout=0.5):
         super().__init__()

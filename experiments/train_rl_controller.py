@@ -28,12 +28,12 @@ import torch.nn.functional as F
 from pytorch_lightning.callbacks import EarlyStopping
 
 ###################################
-# 0) 确保可视化目录
+# 0) Visualization Collection
 ###################################
 os.makedirs("vis", exist_ok=True)
 
 ###################################
-# 1) 定义离散空间 (encoder/pooling/readout/augment/hidden_dims/lr/...)
+# 1) Discrete Space (encoder/pooling/readout/augment/hidden_dims/lr/...)
 ###################################
 encoder_opts = ["GCN", "GAT", "GraphSAGE"]
 pooling_opts = ["mean", "max", "attention"]
@@ -47,13 +47,9 @@ temp_opts = [0.5, 1.0]
 
 
 ###################################
-# 2) 回调：用于记录train/val曲线并画图 (每Episode一张)
+# 2) Record train/val
 ###################################
 class PlotLossAccCallback(pl.Callback):
-    """
-    收集 train_loss, val_loss, train_acc, val_acc，
-    并在train结束后保存到 vis/episode_{epi}_curve.png
-    """
     def __init__(self, episode_idx):
         super().__init__()
         self.episode_idx = episode_idx
@@ -79,7 +75,6 @@ class PlotLossAccCallback(pl.Callback):
             self.val_accs.append(val_acc.cpu().item())
 
     def on_train_end(self, trainer, pl_module):
-        # 画图
         epochs = range(len(self.train_losses))
         fig, ax1 = plt.subplots()
         ax1.set_title(f"Episode {self.episode_idx} Training/Validation")
@@ -104,7 +99,7 @@ class PlotLossAccCallback(pl.Callback):
 
 
 ###################################
-# 3) 组合模型构建 (根据RL采样action)
+# 3) Build Composable Model
 ###################################
 def build_model(action_dict, in_channels, out_channels):
     # 1) Encoder
@@ -160,7 +155,7 @@ def build_model(action_dict, in_channels, out_channels):
 
 
 def apply_feature_augment(data, augment_type):
-    # 可选，对图数据做一些特征/结构增强；此处示例空壳
+    # Optional augumentation. I leave it for future alteration.
     if augment_type == "raw":
         return raw_features(data)
     elif augment_type == "spectral":
@@ -170,18 +165,18 @@ def apply_feature_augment(data, augment_type):
 
 
 ###################################
-# 4) 单Episode: 训练/验证 => val_acc => reward
+# 4) Single Episode:train/val => val_acc => reward
 ###################################
 def run_episode(dataset_name, controller, episode_idx, device="cuda"):
-    # A) 采样动作
+    # A) Sampling
     state = torch.tensor([[0.0]], dtype=torch.float, device=device)
     actions, log_prob = controller.sample_actions(state)
     action_dict = controller.parse_actions(actions)
     print(f"[RL] Episode {episode_idx} => Sampled actions: {action_dict}")
 
-    # B) 数据: 只拿 train+val (不动 test)，避免信息泄露
+    # B) Data: only refer to train+val
     train_data, val_data, test_data = load_dataset(dataset_name)
-    # 特征增强(可自行实现)
+    # Feature augumentation
     for dset in [train_data, val_data]:
         for data in dset:
             apply_feature_augment(data, action_dict["augment"])
@@ -192,12 +187,12 @@ def run_episode(dataset_name, controller, episode_idx, device="cuda"):
     in_channels  = train_data.num_node_features
     out_channels = train_data.num_classes
 
-    # C) 构建模型 + EarlyStopping + 画图回调
+    # C) Build model + EarlyStopping + Vis
     composed_model = build_model(action_dict, in_channels, out_channels)
     module = Evaluator(composed_model, strategy_name="RL-chosen", lr=action_dict["lr"])
 
     early_stop_callback = EarlyStopping(
-        monitor="val_loss",  # 以 val_loss 作为早停指标
+        monitor="val_loss",  # Early by val_loss
         mode="min",
         patience=3,
         verbose=True
@@ -213,7 +208,6 @@ def run_episode(dataset_name, controller, episode_idx, device="cuda"):
     )
     trainer.fit(module, train_loader, val_loader)
 
-    # 拿最后/或最好 val_acc 作为 reward
     val_acc = trainer.callback_metrics.get("val_acc", torch.tensor(0.0)).item()
 
     # D) RL reward = val_acc
@@ -223,12 +217,12 @@ def run_episode(dataset_name, controller, episode_idx, device="cuda"):
 
 
 ###################################
-# 5) 主函数: 多Episode RL搜索 + RL级别早停 + 输出总体曲线
+# 5) Main Function
 ###################################
 def train_rl_controller():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # 初始化 RL controller
+    # Ini RL controller
     controller = MultiHeadRLController(
         encoder_opts, pooling_opts, readout_opts, augment_opts,
         hidden_dim_opts, dropout_opts, lr_opts, bn_opts, temp_opts
@@ -236,17 +230,16 @@ def train_rl_controller():
 
     optimizer = torch.optim.Adam(controller.parameters(), lr=1e-3)
 
-    # ---------- 配置 ----------
+    # ---------- Setup ----------
     episodes = 40
     dataset_name = "ENZYMES" # "PROTEINS" or "ENZYMES"
-    # RL 级别早停
+    # RL Early Stop
     rl_patience = 10
     no_improve_count = 0
 
     best_val_acc = -1.0
     best_actions = None
 
-    # 准备一个数组收集: 每个 episode 的 final train_loss / val_loss / val_acc
     all_episode_train_loss = []
     all_episode_val_loss   = []
     all_episode_val_acc    = []
@@ -255,7 +248,6 @@ def train_rl_controller():
         print(f"========== RL Episode {epi} ==========")
         log_prob, reward, action_dict, val_acc, module = run_episode(dataset_name, controller, epi, device=device)
 
-        # 训练结束后, 取最后一次 epoch 的 train_loss/val_loss
         final_train_loss = module.trainer.callback_metrics.get("train_loss", torch.tensor(999.9)).item()
         final_val_loss   = module.trainer.callback_metrics.get("val_loss", torch.tensor(999.9)).item()
 
@@ -263,13 +255,11 @@ def train_rl_controller():
         all_episode_val_loss.append(final_val_loss)
         all_episode_val_acc.append(val_acc)
 
-        # 进行 RL 参数更新
         loss = controller.reinforce_loss(log_prob, reward)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        # RL 级别: 若 val_acc 刷新最高, 记录; 否则 no_improve_count +=1
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             best_actions = action_dict
@@ -284,7 +274,6 @@ def train_rl_controller():
     print("[RL] Training finished.")
     print(f"Best val_acc = {best_val_acc:.4f}, with actions = {best_actions}")
 
-    # 保存到 JSON, 用于后续 deploy
     best_record = {
         "dataset_name": dataset_name,
         "best_val_acc": best_val_acc,
@@ -294,8 +283,7 @@ def train_rl_controller():
         json.dump(best_record, f, indent=2)
     print("==> best_strategy.json has been saved. You can now run deploy_controller.py to do final test.")
 
-    # ---------- 画一个“整体RL搜索曲线”：每 Episode 的 final train_loss / val_loss / val_acc ----------
-    episodes_done = len(all_episode_val_acc)  # 可能 < episodes if RL early stopped
+    episodes_done = len(all_episode_val_acc)
     xs = range(episodes_done)
 
     plt.figure()

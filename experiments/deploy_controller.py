@@ -1,5 +1,3 @@
-# experiments/deploy_controller.py
-
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -20,9 +18,9 @@ from modules.composable_blocks import (
 )
 from datasets.loader_factory import load_dataset
 
-# 和 train_rl_controller.py 一样的构造函数
+# a constructor like train_rl_controller.py 
 def build_model(action_dict, in_channels, out_channels):
-    # 复制一致即可；或从公共模块中 import
+    # Just copy the same; or import from a public module
     from modules.composable_blocks import GlobalAttentionPooling, TransformerReadout
 
     encoder_type = action_dict["encoder"]
@@ -91,10 +89,10 @@ def deploy_best_strategy():
     best_actions = record["best_actions"]
     print(f"[Deploy] Loaded best strategy for {dataset_name}: {best_actions}")
 
-    # 加载 train/val/test
+    # load train/val/test
     train_data, val_data, test_data = load_dataset(dataset_name)
 
-    # 合并 train+val => 做最终训练
+    # combine train+val => for final train
     from torch.utils.data import ConcatDataset
     train_val_dataset = ConcatDataset([train_data, val_data])
 
@@ -103,11 +101,9 @@ def deploy_best_strategy():
     test_loader  = DataLoader(test_data, batch_size=32, shuffle=False, num_workers=0)
 
     # in_channels/out_channels
-    # 注意: train_data 是 TUDataset(或子集), 直接 .num_node_features / .num_classes
     in_channels  = train_data.num_node_features
     out_channels = train_data.num_classes
 
-    # 构建模型
     model = build_model(best_actions, in_channels, out_channels)
     module = Evaluator(model, strategy_name="Deployed", lr=best_actions["lr"])
 
@@ -119,7 +115,7 @@ def deploy_best_strategy():
     )
 
     print("[Deploy] Training on (train+val) with best synergy ...")
-    trainer.fit(module, train_loader)  # 不传 val_loader, 全部用来训练
+    trainer.fit(module, train_loader)
 
     print("[Deploy] Testing on test set ...")
     results = trainer.test(module, test_loader)

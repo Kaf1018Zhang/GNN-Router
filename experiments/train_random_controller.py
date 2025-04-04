@@ -8,9 +8,9 @@ from core.reward_utils import compute_reward
 
 def train_controller_with_reward(dataset_name, candidates, trials=5):
     """
-    多次随机采样不同 GNN 模块组合，
-    计算其在验证集/测试集上的准确率并作为 reward，
-    从而选出最佳策略并保存。
+    Randomly sample different GNN module combinations multiple times,
+    calculate their accuracy on the validation set/test set and use it as reward,
+    so as to select the best strategy and save it.
     """
     controller = SimpleRoutingController(candidates)
     results = {}
@@ -19,15 +19,15 @@ def train_controller_with_reward(dataset_name, candidates, trials=5):
         choice = controller.sample_random()
         print(f"[Controller Trainer] Trying strategy: {choice}")
 
-        # 利用该策略跑一次完整训练+验证+测试，得到 test_acc
+        # Use this strategy to run a complete training + validation + test, and get test_acc
         acc = run_with_fixed_strategy(dataset_name, controller, override_choice=choice)
 
-        # 此处可加复杂度(如 params)指标
+        # Complexity (such as params) indicators can be added here
         complexity = 0.0
         reward = compute_reward(accuracy=acc, model_complexity=complexity, alpha=0.0)
         results[choice] = max(reward, results.get(choice, 0))
 
-    # 找到分数最高的策略
+    # Find the strategy with the highest score
     best = max(results, key=results.get)
     controller.set_best(dataset_name, best)
     print(f"[Controller Trainer] Best strategy for {dataset_name}: {best}")
