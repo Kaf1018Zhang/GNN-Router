@@ -9,9 +9,8 @@ import pytorch_lightning as pl
 import numpy as np
 import json
 import matplotlib.pyplot as plt
-import os
 
-from modules.rl_controller import MultiHeadRLController
+from modules.rl_controller import MultiHeadRLController  # Use the controller that supports structure embedding + Gumbel‑Softmax
 from modules.composable_blocks import (
     GCNEncoder, GATEncoder, SAGEEncoder,
     pooling_mean, pooling_max, GlobalAttentionPooling,
@@ -44,7 +43,6 @@ dropout_opts = [0.0, 0.5]
 lr_opts = [1e-3, 1e-4]
 bn_opts = [False, True]
 temp_opts = [0.5, 1.0]
-
 
 ###################################
 # 2) Record train/val
@@ -97,10 +95,10 @@ class PlotLossAccCallback(pl.Callback):
         plt.savefig(f"vis/episode_{self.episode_idx}_curve.png")
         plt.close()
 
-
 ###################################
 # 3) Build Composable Model
 ###################################
+
 def build_model(action_dict, in_channels, out_channels):
     # 1) Encoder
     if action_dict["encoder"] == "GCN":
@@ -141,8 +139,7 @@ def build_model(action_dict, in_channels, out_channels):
 
             # Transformer vs Pool
             if isinstance(self.readout, TransformerReadout):
-                # 让transformer读出逐图CLS
-                out = self.readout(x, batch)
+                out = self.readout(x, batch)  # CLS token Output graph by graph
             else:
                 if isinstance(self.pooling_fn, nn.Module):
                     x_pooled = self.pooling_fn(x, batch)
@@ -155,7 +152,6 @@ def build_model(action_dict, in_channels, out_channels):
 
 
 def apply_feature_augment(data, augment_type):
-    # Optional augumentation. I leave it for future alteration.
     if augment_type == "raw":
         return raw_features(data)
     elif augment_type == "spectral":
@@ -163,10 +159,10 @@ def apply_feature_augment(data, augment_type):
     else:
         return virtual_node_features(data)
 
+###################################
+# 4) Single Episode: train/val => val_acc => reward
+###################################
 
-###################################
-# 4) Single Episode:train/val => val_acc => reward
-###################################
 def run_episode(dataset_name, controller, episode_idx, device="cuda"):
     # A) Sampling
     state = torch.tensor([[0.0]], dtype=torch.float, device=device)
@@ -176,15 +172,14 @@ def run_episode(dataset_name, controller, episode_idx, device="cuda"):
 
     # B) Data: only refer to train+val
     train_data, val_data, test_data = load_dataset(dataset_name)
-    # Feature augumentation
     for dset in [train_data, val_data]:
         for data in dset:
             apply_feature_augment(data, action_dict["augment"])
 
     train_loader = DataLoader(train_data, batch_size=32, shuffle=True, num_workers=0)
-    val_loader   = DataLoader(val_data, batch_size=32, shuffle=False, num_workers=0)
+    val_loader = DataLoader(val_data, batch_size=32, shuffle=False, num_workers=0)
 
-    in_channels  = train_data.num_node_features
+    in_channels = train_data.num_node_features
     out_channels = train_data.num_classes
 
     # C) Build model + EarlyStopping + Vis
@@ -192,7 +187,7 @@ def run_episode(dataset_name, controller, episode_idx, device="cuda"):
     module = Evaluator(composed_model, strategy_name="RL-chosen", lr=action_dict["lr"])
 
     early_stop_callback = EarlyStopping(
-        monitor="val_loss",  # Early by val_loss
+        monitor="val_loss",
         mode="min",
         patience=3,
         verbose=True
@@ -215,14 +210,14 @@ def run_episode(dataset_name, controller, episode_idx, device="cuda"):
     print(f"[RL] Episode {episode_idx} => val_acc={val_acc:.4f}, reward={reward:.4f}")
     return log_prob, reward, action_dict, val_acc, module
 
-
 ###################################
 # 5) Main Function
 ###################################
+
 def train_rl_controller():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Ini RL controller
+    # Initialize RL controller (Supports structure embedding + Gumbel‑Softmax, and implements phased search internally)
     controller = MultiHeadRLController(
         encoder_opts, pooling_opts, readout_opts, augment_opts,
         hidden_dim_opts, dropout_opts, lr_opts, bn_opts, temp_opts
@@ -230,10 +225,8 @@ def train_rl_controller():
 
     optimizer = torch.optim.Adam(controller.parameters(), lr=1e-3)
 
-    # ---------- Setup ----------
     episodes = 40
-    dataset_name = "ENZYMES" # "PROTEINS" or "ENZYMES"
-    # RL Early Stop
+    dataset_name = "ENZYMES"  # "PROTEINS" or "ENZYMES"
     rl_patience = 10
     no_improve_count = 0
 
@@ -241,15 +234,15 @@ def train_rl_controller():
     best_actions = None
 
     all_episode_train_loss = []
-    all_episode_val_loss   = []
-    all_episode_val_acc    = []
+    all_episode_val_loss = []
+    all_episode_val_acc = []
 
     for epi in range(episodes):
         print(f"========== RL Episode {epi} ==========")
         log_prob, reward, action_dict, val_acc, module = run_episode(dataset_name, controller, epi, device=device)
 
         final_train_loss = module.trainer.callback_metrics.get("train_loss", torch.tensor(999.9)).item()
-        final_val_loss   = module.trainer.callback_metrics.get("val_loss", torch.tensor(999.9)).item()
+        final_val_loss = module.trainer.callback_metrics.get("val_loss", torch.tensor(999.9)).item()
 
         all_episode_train_loss.append(final_train_loss)
         all_episode_val_loss.append(final_val_loss)
@@ -289,12 +282,11 @@ def train_rl_controller():
     plt.figure()
     plt.title("RL Search Overall: Train/Val Loss & Val Acc")
     plt.plot(xs, all_episode_train_loss, label="Final Train Loss", color="red")
-    plt.plot(xs, all_episode_val_loss,   label="Final Val Loss",   color="orange")
+    plt.plot(xs, all_episode_val_loss, label="Final Val Loss", color="orange")
     plt.ylabel("Loss")
     plt.xlabel("Episode")
     plt.legend(loc="upper left")
 
-    # 右轴: val_acc
     ax2 = plt.gca().twinx()
     ax2.plot(xs, all_episode_val_acc, label="Val Acc", color="blue")
     ax2.set_ylabel("Val Acc")
